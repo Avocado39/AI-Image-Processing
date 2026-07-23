@@ -1,0 +1,26 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# Datasets (do NOT commit large image data)
+data/raw/
+data/classification/
+data/raw_path.txt
+*.zip
+
+# Trained models & results
+models/*.pth
+models/*.pt
+results/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

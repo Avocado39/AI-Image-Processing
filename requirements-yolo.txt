@@ -1,0 +1,4 @@
+# Extra dependency for Member C (YOLO object detection).
+# Install AFTER requirements.txt:
+#   .venv\Scripts\python -m pip install -r requirements-yolo.txt
+ultralytics>=8.2
