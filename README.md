@@ -436,8 +436,9 @@ AI-Image-Processing/
 │   ├── compare.py                # assemble the three-way comparison table
 │   └── utils.py                  # seed, device, JSON, plots, run reporting
 ├── notebooks/
-│   ├── train_colab.ipynb         # train + evaluate on a Colab GPU
-│   └── export_onnx.ipynb         # export both models to ONNX for the demo
+│   ├── train_colab.ipynb         # train + evaluate the CNN on a Colab GPU
+│   ├── train_yolo_colab.ipynb    # full 50-epoch 640px detector run on a GPU
+│   └── export_onnx.ipynb         # export the CNN + vehicle check to ONNX
 ├── docs/                         # report + documentation outline
 ├── data/         (git-ignored)   # raw download + cropped classification set
 ├── models/       (git-ignored)   # trained weights
@@ -460,7 +461,9 @@ focused on training.
   silently mislabel every prediction.
 - **The YOLO run was compute-limited.** 10 epochs at 416 px on CPU, and mAP was still
   climbing on the final epoch — so 0.602 mAP@50 is a floor, not the model's ceiling.
-  Re-run with `--epochs 50 --img-size 640` on a GPU for a number worth defending.
+  [`notebooks/train_yolo_colab.ipynb`](notebooks/train_yolo_colab.ipynb) does the full
+  50-epoch 640 px run on a T4 in about an hour and exports the ONNX to upgrade the
+  deployed demo. **Not yet run** — the figures above are still the CPU ones.
 - **`config.BACKBONE` still defaults to `resnet18`** while the project uses
   MobileNetV2. Pass `--backbone mobilenet_v2` explicitly, as the Colab notebook does.
 
