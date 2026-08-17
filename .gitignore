@@ -14,11 +14,12 @@ data/classification/
 data/raw_path.txt
 *.zip
 
-# Trained models & results
-models/*.pth
-models/*.pt
-models/*.onnx
-models/*_meta.json
+# Trained models & results.
+# Ignore the whole of models/ rather than listing extensions - the previous
+# extension list silently let a 76 MB .joblib and a 34 MB .npz through. Weights are
+# reproducible from the training scripts and belong in Drive or the demo repo, not
+# in git.
+models/
 results/
 
 # Ultralytics: downloaded pretrained weights, and its default output dir if a run
