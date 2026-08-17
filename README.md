@@ -129,9 +129,14 @@ misrepresent it, which is precisely why the rubric asks for F1.
 
 | Algorithm | Precision | Recall | mAP@50 | mAP@50-95 |
 |-----------|----------:|-------:|-------:|----------:|
-| yolo | 0.6338 | 0.5663 | **0.6021** | 0.4869 |
+| yolo | 0.7595 | 0.6816 | **0.7245** | 0.5776 |
 
-YOLOv8n, 10 epochs at 416 px on CPU, 2,816 training images.
+YOLOv8s, 50 epochs at 640 px on a Colab T4, 2,816 training images.
+
+An earlier CPU run (YOLOv8n, 10 epochs, 416 px) scored mAP@50 0.6021 / mAP@50-95
+0.4869. The full run improves mAP@50 by **+0.122**. Worth noting for the write-up
+that this changed three variables at once — model size, image size and epochs — so it
+is a better result but not a clean ablation of any single factor.
 
 These numbers are **not** a row in the table above, and the report should keep them
 apart. Detection is scored with mAP and IoU because a prediction only counts if the box
@@ -140,18 +145,20 @@ one?" while the classifiers answer "what is this crop?". A model can score 0.60 
 the harder question while a classifier scores 0.92 accuracy on the easier one, and
 neither number makes the other look good or bad.
 
-**The run was compute-limited and had not converged**: mAP@50 rose 0.583 → 0.602 on
-the final epoch, and mAP@50-95 rose 0.459 → 0.487. That is worth stating in the
-write-up, with `results/yolo/cardd/results.png` as evidence. A 50-epoch run at 640 px
-on a GPU would land meaningfully higher.
+**This run is close to converged**, unlike the CPU one. mAP@50 moved +0.0127 across
+the final six epochs (0.712 → 0.724), against the CPU run gaining +0.019 on its last
+epoch alone. Marginal gains likely remain, so the honest framing is "near plateau",
+not "converged" — `results/yolo/cardd/results.png` is the evidence.
 
 Reproduce with:
 
 ```powershell
 .venv\Scripts\python src\train_svm.py --sweep
-.venv\Scripts\python src\train_yolo.py --data "data\raw\cardd\data.yaml" --epochs 10 --img-size 416
 .venv\Scripts\python src\compare.py
 ```
+
+The detector needs a GPU — see
+[`notebooks/train_yolo_colab.ipynb`](notebooks/train_yolo_colab.ipynb).
 
 ---
 
@@ -466,11 +473,9 @@ focused on training.
   starts with `dent`. Always read class names from the checkpoint, as `evaluate.py`
   and `predict.py` do. Assuming `config.CLASS_NAMES` matches model output will
   silently mislabel every prediction.
-- **The YOLO run was compute-limited.** 10 epochs at 416 px on CPU, and mAP was still
-  climbing on the final epoch — so 0.602 mAP@50 is a floor, not the model's ceiling.
-  [`notebooks/train_yolo_colab.ipynb`](notebooks/train_yolo_colab.ipynb) does the full
-  50-epoch 640 px run on a T4 in about an hour and exports the ONNX to upgrade the
-  deployed demo. **Not yet run** — the figures above are still the CPU ones.
+- **The detector may still have headroom.** mAP@50 gained +0.0127 over the final six
+  epochs, so it is near plateau rather than flat. A longer run or a larger backbone
+  would likely add a little more.
 - **`config.BACKBONE` still defaults to `resnet18`** while the project uses
   MobileNetV2. Pass `--backbone mobilenet_v2` explicitly, as the Colab notebook does.
 
