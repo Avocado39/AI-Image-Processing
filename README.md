@@ -11,8 +11,8 @@ dataset. Six damage types: `dent`, `scratch`, `crack`, `glass_shatter`,
 Deployed and live — upload any photo of vehicle damage and it classifies it. No
 install, no sign-in, works on a phone.
 
-**Project status:** the CNN is trained, evaluated and deployed. The SVM baseline is
-trained and evaluated. YOLO is still to be run.
+**Project status:** all three algorithms are trained and evaluated, and the CNN is
+deployed as a live web app.
 
 ---
 
@@ -26,7 +26,7 @@ the same splits**, so the comparison is fair.
 |--------|-----------|--------|-------------|--------|
 | **A** | **MobileNetV2 CNN**, transfer learning from ImageNet | Deep learning | `src/train_cnn.py` | **Trained & evaluated** |
 | **B** | **SVM (RBF kernel)** on HOG features | Classical ML | `src/train_svm.py` | **Trained & evaluated** |
-| **C** | **YOLOv8** object detection | Deep learning, detection | `src/train_yolo.py` | Guided stub |
+| **C** | **YOLOv8** object detection | Deep learning, detection | `src/train_yolo.py` | **Trained & evaluated** |
 
 Files are named after the algorithm, not the member, so the codebase stays readable
 if the allocation ever changes. This table is the only place the mapping lives.
@@ -125,10 +125,31 @@ almost never predicting the hard classes — 1.000 precision on `glass_shatter` 
 exactly 1 correct prediction out of 71. Quoting precision alone would badly
 misrepresent it, which is precisely why the rubric asks for F1.
 
+### Detection (separate table on purpose)
+
+| Algorithm | Precision | Recall | mAP@50 | mAP@50-95 |
+|-----------|----------:|-------:|-------:|----------:|
+| yolo | 0.6338 | 0.5663 | **0.6021** | 0.4869 |
+
+YOLOv8n, 10 epochs at 416 px on CPU, 2,816 training images.
+
+These numbers are **not** a row in the table above, and the report should keep them
+apart. Detection is scored with mAP and IoU because a prediction only counts if the box
+overlaps the true region — YOLO is answering "where is the damage, and what is each
+one?" while the classifiers answer "what is this crop?". A model can score 0.60 mAP on
+the harder question while a classifier scores 0.92 accuracy on the easier one, and
+neither number makes the other look good or bad.
+
+**The run was compute-limited and had not converged**: mAP@50 rose 0.583 → 0.602 on
+the final epoch, and mAP@50-95 rose 0.459 → 0.487. That is worth stating in the
+write-up, with `results/yolo/cardd/results.png` as evidence. A 50-epoch run at 640 px
+on a GPU would land meaningfully higher.
+
 Reproduce with:
 
 ```powershell
 .venv\Scripts\python src\train_svm.py --sweep
+.venv\Scripts\python src\train_yolo.py --data "data\raw\cardd\data.yaml" --epochs 10 --img-size 416
 .venv\Scripts\python src\compare.py
 ```
 
@@ -303,27 +324,36 @@ py -3.12 -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 ```
 
-**2. PyTorch will not load on this machine.** Windows **Smart App Control** is enabled
-and blocks PyTorch's unsigned DLLs:
+**2. No GPU, and PyTorch may be blocked.** Windows **Smart App Control** is enabled on
+the dev machine. Earlier torch builds failed to load with:
 
 ```
 OSError: [WinError 4551] An Application Control policy has blocked this file.
 ```
 
-Not fixable in Python — Smart App Control can only be disabled, which is irreversible
-without a Windows reinstall. **Anything importing torch runs in Google Colab instead.**
+Smart App Control judges binaries by signature and cloud reputation, and torch's
+Windows DLLs are unsigned. `torch 2.13.0+cpu` now loads fine — presumably having
+earned enough reputation — but a different build could be blocked again. If that
+happens, it is not fixable in Python: Smart App Control can only be disabled, which is
+irreversible without a Windows reinstall. Use the Colab notebooks instead.
+
+Either way the machine is **CPU-only** (`torch.cuda.is_available()` is `False`), so
+GPU-bound work belongs on Colab for speed, not correctness.
 
 ### What runs where
 
-| Stage | Script | Needs torch? | Where |
-|-------|--------|--------------|-------|
-| 1. Download | `src/download_data.py` | No | Local |
-| 2. Prepare | `src/prepare_classification.py` | No | Local |
-| 3. Train | `src/train_cnn.py` | **Yes** | Colab |
-| 4. Evaluate | `src/evaluate.py` | **Yes** | Colab |
-| 5. Predict | `src/predict.py` | **Yes** | Use the web demo |
-| SVM | `src/train_svm.py` | No | Local |
-| YOLO | `src/train_yolo.py` | **Yes** | Colab |
+Everything runs locally today. "Colab" below means *much faster there*, not *broken
+here*.
+
+| Stage | Script | Local? | Notes |
+|-------|--------|--------|-------|
+| 1. Download | `src/download_data.py` | Yes | ~3 GB from Kaggle |
+| 2. Prepare | `src/prepare_classification.py` | Yes | 1–2 min |
+| 3. Train CNN | `src/train_cnn.py` | Slow | minutes on a T4, hours on CPU |
+| 4. Evaluate | `src/evaluate.py` | Yes | seconds |
+| 5. Predict | `src/predict.py` | Yes | or use the web demo |
+| SVM | `src/train_svm.py` | Yes | ~2 min per configuration |
+| YOLO | `src/train_yolo.py` | Slow | 5–7 min per epoch on CPU |
 
 ---
 
@@ -368,12 +398,21 @@ Re-upload `cardd_src.zip` whenever `src/` changes.
 Each run writes `results/<model>_<feature>/`. `--sweep` extracts each feature set once
 and reuses it across both classifiers, then prints a ranked summary.
 
-### YOLO, on Colab
+### YOLO
 
 ```powershell
 .venv\Scripts\python -m pip install -r requirements-yolo.txt
-.venv\Scripts\python src\train_yolo.py --data "<path>\data.yaml" --epochs 50
+.venv\Scripts\python src\train_yolo.py --data "data\raw\cardd\data.yaml" --epochs 10 --img-size 416
+
+# quick smoke run - a fraction of the data, to check the pipeline before committing hours
+.venv\Scripts\python src\train_yolo.py --data "data\raw\cardd\data.yaml" --epochs 1 --fraction 0.02
 ```
+
+CarDD's shipped `data.yaml` hardcodes Kaggle paths (`/kaggle/input/...`), so
+`train_yolo.py` detects that and writes a corrected `data_local.yaml` beside it
+automatically.
+
+On CPU each epoch is 5–7 minutes at 416 px. On a GPU, use `--epochs 50 --img-size 640`.
 
 ---
 
@@ -419,7 +458,9 @@ focused on training.
   starts with `dent`. Always read class names from the checkpoint, as `evaluate.py`
   and `predict.py` do. Assuming `config.CLASS_NAMES` matches model output will
   silently mislabel every prediction.
-- **YOLO has not been run**, so the comparison table has no detection row yet.
+- **The YOLO run was compute-limited.** 10 epochs at 416 px on CPU, and mAP was still
+  climbing on the final epoch — so 0.602 mAP@50 is a floor, not the model's ceiling.
+  Re-run with `--epochs 50 --img-size 640` on a GPU for a number worth defending.
 - **`config.BACKBONE` still defaults to `resnet18`** while the project uses
   MobileNetV2. Pass `--backbone mobilenet_v2` explicitly, as the Colab notebook does.
 

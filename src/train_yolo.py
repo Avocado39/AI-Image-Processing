@@ -25,41 +25,78 @@ Run:
 import argparse
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config
 import utils
 
 
-def train(data_yaml, epochs, img_size, weights):
+def resolve_data_yaml(path):
+    """Return a data.yaml whose split paths exist on this machine.
+
+    CarDD's shipped data.yaml hardcodes Kaggle paths (/kaggle/input/...), which do
+    not exist anywhere else. Rather than making every user hand-edit it, rewrite a
+    local copy next to the original with paths pointing at the actual folders.
+    """
+    import yaml
+
+    path = Path(path)
+    spec = yaml.safe_load(path.read_text(encoding="utf-8"))
+    root = path.parent
+
+    if all((root / split).exists() or Path(spec.get(split, "")).exists()
+           for split in ("train", "val")):
+        if Path(spec.get("train", "")).exists():
+            return str(path)                       # already valid, use as-is
+
+    fixed = dict(spec)
+    for split in ("train", "val", "test"):
+        candidate = root / split / "images"
+        if candidate.exists():
+            fixed[split] = str(candidate.resolve())
+
+    out = path.with_name("data_local.yaml")
+    out.write_text(yaml.safe_dump(fixed, sort_keys=False), encoding="utf-8")
+    print(f"[data] rewrote split paths for this machine -> {out}")
+    return str(out)
+
+
+def train(data_yaml, epochs, img_size, weights, fraction=1.0):
     from ultralytics import YOLO
 
+    data_yaml = resolve_data_yaml(data_yaml)
     model = YOLO(weights)  # e.g. yolov8n.pt (nano) - small & fast to start
-    results = model.train(
+    model.train(
         data=data_yaml,
         epochs=epochs,
         imgsz=img_size,
+        fraction=fraction,
         project=str(config.RESULTS_DIR / "yolo"),
         name="cardd",
+        exist_ok=True,
         seed=config.SEED,
     )
-    # Ultralytics writes its own plots + confusion matrix into results/yolo/cardd/.
-    # Pull the headline numbers out into the same metrics.json shape the classifiers
-    # use, so src/compare.py can pick them up - marked task="detection" so nothing
-    # accidentally lists mAP alongside classification accuracy.
-    save_metrics(results)
+
+    # Metrics come from an explicit validation pass, not from train()'s return
+    # value: model.val() reliably returns a DetMetrics object with a stable .box
+    # interface, whereas what train() hands back varies between versions.
+    # Ultralytics also writes its own plots + confusion matrix into
+    # results/yolo/cardd/.
+    # project/name are passed explicitly, or Ultralytics drops the validation plots
+    # into a stray runs/detect/val/ at the current working directory instead of
+    # alongside the training output.
+    save_metrics(model.val(
+        data=data_yaml,
+        imgsz=img_size,
+        project=str(config.RESULTS_DIR / "yolo"),
+        name="val",
+        exist_ok=True,
+    ))
 
 
 def save_metrics(results):
     """Extract Ultralytics' box metrics into results/yolo/metrics.json."""
-    import sys
-
-    box = getattr(getattr(results, "box", None), "__dict__", None)
-    if box is None and not hasattr(results, "results_dict"):
-        print("Could not read metrics off the results object - check the run "
-              "folder manually.", file=sys.stderr)
-        return
-
     def get(attr, key):
         v = getattr(getattr(results, "box", object()), attr, None)
         if v is None:
@@ -100,13 +137,16 @@ def main():
     ap.add_argument("--epochs", type=int, default=50)
     ap.add_argument("--img-size", type=int, default=640)
     ap.add_argument("--weights", default="yolov8n.pt")
+    ap.add_argument("--fraction", type=float, default=1.0,
+                    help="fraction of the training set to use; <1 for a fast "
+                         "smoke run on CPU")
     ap.add_argument("--predict", help="run detection on a single image (needs trained weights)")
     args = ap.parse_args()
 
     if args.predict:
         predict(args.predict, args.weights)
     elif args.data:
-        train(args.data, args.epochs, args.img_size, args.weights)
+        train(args.data, args.epochs, args.img_size, args.weights, args.fraction)
     else:
         ap.error("Pass --data <data.yaml> to train, or --predict <image> to detect.")
 

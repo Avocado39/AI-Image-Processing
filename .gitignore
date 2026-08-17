@@ -21,6 +21,11 @@ models/*.onnx
 models/*_meta.json
 results/
 
+# Ultralytics: downloaded pretrained weights, and its default output dir if a run
+# is ever launched without an explicit project= path
+yolo*.pt
+runs/
+
 # OS / editor
 .DS_Store
 Thumbs.db
