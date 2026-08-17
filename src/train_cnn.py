@@ -1,5 +1,5 @@
 """
-Step 3 - Train the CNN damage-type classifier (Member A).
+Train the CNN damage-type classifier (transfer learning).
 
 Transfer learning with a torchvision backbone (default ResNet18). Saves the best
 model (by validation macro-F1) plus a training-history plot and JSON log.
@@ -57,6 +57,8 @@ def main():
     ap.add_argument("--img-size", type=int, default=config.IMG_SIZE)
     ap.add_argument("--lr", type=float, default=config.LEARNING_RATE)
     ap.add_argument("--backbone", default=config.BACKBONE)
+    ap.add_argument("--num-workers", type=int, default=config.NUM_WORKERS,
+                    help="dataloader workers; 0 on Windows, 2-4 on Linux/Colab")
     ap.add_argument("--no-pretrained", action="store_true", help="train from scratch")
     ap.add_argument("--freeze-backbone", action="store_true", help="train only the head")
     ap.add_argument("--out", default=str(config.MODEL_PATH))
@@ -69,7 +71,8 @@ def main():
     device = utils.get_device()
     print(f"[device] {device}")
 
-    loaders, class_names = build_dataloaders(args.img_size, args.batch_size)
+    loaders, class_names = build_dataloaders(args.img_size, args.batch_size,
+                                             args.num_workers)
     print(f"[data] classes = {class_names}")
     for split in ("train", "val", "test"):
         print(f"[data] {split}: {len(loaders[split].dataset)} images")

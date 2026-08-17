@@ -17,6 +17,8 @@ data/raw_path.txt
 # Trained models & results
 models/*.pth
 models/*.pt
+models/*.onnx
+models/*_meta.json
 results/
 
 # OS / editor

@@ -26,8 +26,6 @@ def main():
     args = ap.parse_args()
 
     import torch
-    from sklearn.metrics import (accuracy_score, classification_report,
-                                 confusion_matrix, precision_recall_fscore_support)
 
     device = utils.get_device()
     ckpt = torch.load(args.model, map_location=device, weights_only=False)
@@ -51,32 +49,17 @@ def main():
             y_pred.extend(preds)
             y_true.extend(labels.tolist())
 
-    acc = accuracy_score(y_true, y_pred)
-    p, r, f1, _ = precision_recall_fscore_support(
-        y_true, y_pred, average="macro", zero_division=0)
-    report = classification_report(
-        y_true, y_pred, target_names=class_names, digits=4, zero_division=0)
-    cm = confusion_matrix(y_true, y_pred, labels=list(range(len(class_names))))
-
-    print(f"\n=== {args.split.upper()} SET RESULTS ===")
-    print(f"Accuracy        : {acc:.4f}")
-    print(f"Precision (macro): {p:.4f}")
-    print(f"Recall    (macro): {r:.4f}")
-    print(f"F1        (macro): {f1:.4f}\n")
-    print(report)
-
-    config.RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    (config.RESULTS_DIR / "classification_report.txt").write_text(
-        f"Accuracy: {acc:.4f}\nPrecision(macro): {p:.4f}\n"
-        f"Recall(macro): {r:.4f}\nF1(macro): {f1:.4f}\n\n{report}",
-        encoding="utf-8")
-    utils.save_json(
-        {"accuracy": acc, "precision_macro": p, "recall_macro": r, "f1_macro": f1},
-        config.RESULTS_DIR / "cnn_metrics.json")
-    utils.plot_confusion_matrix(
-        cm, class_names, config.RESULTS_DIR / "confusion_matrix.png",
+    # Same reporting path as every other algorithm, so src/compare.py can read all
+    # of them uniformly. Writes results/cnn/ (or results/cnn_val/ for --split val).
+    name = "cnn" if args.split == "test" else f"cnn_{args.split}"
+    metrics = utils.save_run_report(
+        name, y_true, y_pred, class_names,
         title=f"CNN ({backbone}) - {args.split} set")
-    print("\nSaved report, metrics JSON and confusion matrix to results/")
+    metrics["backbone"] = backbone
+    utils.save_json(metrics, config.RESULTS_DIR / name / "metrics.json")
+
+    print(f"\nSaved report, metrics and confusion matrix to results/{name}/")
+    print("Compare against the other algorithms with:  python src/compare.py")
 
 
 if __name__ == "__main__":

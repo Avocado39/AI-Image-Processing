@@ -44,7 +44,7 @@ VAL_SPLIT = 0.15            # used only if the raw dataset has no split of its o
 TEST_SPLIT = 0.15
 
 # ---------------------------------------------------------------------------
-# Training hyper-parameters (Member A - CNN)
+# Training hyper-parameters (CNN)
 # ---------------------------------------------------------------------------
 SEED = 42
 IMG_SIZE = 224

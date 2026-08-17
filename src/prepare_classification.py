@@ -3,7 +3,7 @@ Step 2 - Turn CarDD's YOLO detection labels into a classification dataset.
 
 CarDD ships as an object-detection dataset: each image has a .txt label file
 with one line per damaged region:  `class_id  cx  cy  w  h`  (all normalised).
-For a *classification* model (Member A's CNN) we want one image = one damage
+For a *classification* model (the CNN and the SVM) we want one image = one damage
 type. So we crop every labelled box out of its image and drop the crop into a
 folder named after its damage class:
 
