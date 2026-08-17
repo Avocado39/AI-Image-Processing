@@ -374,18 +374,24 @@ API Token** → save `kaggle.json` to `C:\Users\<you>\.kaggle\kaggle.json`.
 **Already done — the model is trained and the results above are final.** This section
 documents how, for the report and for anyone who needs to reproduce it.
 
-Zip two things and upload both to Google Drive at `MyDrive/cardd/`:
+The Colab notebooks read the source and dataset from Google Drive. Build the zips:
 
-| Zip | Contents |
-|-----|----------|
-| `cardd_src.zip` | `src/`, `docs/`, `requirements*.txt`, `README.md` |
-| `cardd_classification.zip` | the `classification/` folder from `data/` |
+```powershell
+.venv\Scripts\python scripts\make_colab_bundle.py           # source only, ~45 KB
+.venv\Scripts\python scripts\make_colab_bundle.py --data    # also the ~360 MB dataset
+```
 
-Then run [`notebooks/train_colab.ipynb`](notebooks/train_colab.ipynb) on a T4 GPU. It
-runs this repo's own `src/` code rather than a copy, so results stay reproducible, and
-copies everything back to Drive so it survives the session ending.
+Upload them to `MyDrive/cardd/`, then run
+[`notebooks/train_colab.ipynb`](notebooks/train_colab.ipynb) on a T4 GPU. It runs this
+repo's own `src/` code rather than a copy, so results stay reproducible, and copies
+everything back to Drive so it survives the session ending.
 
-Re-upload `cardd_src.zip` whenever `src/` changes.
+> **Rebuild and re-upload `cardd_src.zip` whenever anything under `src/` changes**,
+> and **restart the Colab session** afterwards — the notebooks skip unpacking if
+> `/content/AI-Image-Processing` already exists, so a stale copy silently persists.
+> A stale bundle fails in a confusing way: the notebook unpacks it, reports success,
+> then dies on a missing file. `make_colab_bundle.py` guards against the worst case by
+> refusing to write a zip that lacks any script the notebooks invoke.
 
 ### SVM, locally
 
@@ -439,6 +445,7 @@ AI-Image-Processing/
 │   ├── train_colab.ipynb         # train + evaluate the CNN on a Colab GPU
 │   ├── train_yolo_colab.ipynb    # full 50-epoch 640px detector run on a GPU
 │   └── export_onnx.ipynb         # export the CNN + vehicle check to ONNX
+├── scripts/make_colab_bundle.py  # build the zips the Colab notebooks read
 ├── docs/                         # report + documentation outline
 ├── data/         (git-ignored)   # raw download + cropped classification set
 ├── models/       (git-ignored)   # trained weights
