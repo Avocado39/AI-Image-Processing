@@ -1,0 +1,13 @@
+{
+  "class_names": [
+    "crack",
+    "dent",
+    "glass_shatter",
+    "lamp_broken",
+    "scratch",
+    "tire_flat"
+  ],
+  "feature": "hog",
+  "feat_size": 64,
+  "model": "svm"
+}

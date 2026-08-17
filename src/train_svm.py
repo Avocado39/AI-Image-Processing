@@ -87,7 +87,58 @@ def run_one(model, feature, C, k, data):
         title=f"{model.upper()} ({feature}) - test set")
     metrics["hyperparameters"] = {"C": C} if model == "svm" else {"n_neighbors": k}
     utils.save_json(metrics, config.RESULTS_DIR / name / "metrics.json")
+
+    save_fitted(name, clf, scaler, class_names, feature)
     return metrics
+
+
+def save_fitted(name, clf, scaler, class_names, feature):
+    """Persist the fitted estimator so it can be reused without retraining.
+
+    Two formats, because they serve different consumers:
+
+    - a joblib pickle, for reloading in this project;
+    - an .npz of the raw learned parameters, so an environment WITHOUT scikit-learn
+      can still run predictions. sklearn drags in scipy (~150 MB together), which is
+      too much for a serverless bundle, so the deployable form is the parameters.
+    """
+    import numpy as np
+
+    out_dir = config.MODELS_DIR / name
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        import joblib
+        joblib.dump({"clf": clf, "scaler": scaler, "class_names": class_names,
+                     "feature": feature, "feat_size": FEAT_SIZE},
+                    out_dir / "model.joblib")
+    except ImportError:
+        print("  (joblib not installed - skipping the pickle)")
+
+    params = {
+        "scaler_mean": scaler.mean_.astype(np.float32),
+        "scaler_scale": scaler.scale_.astype(np.float32),
+    }
+    if hasattr(clf, "support_vectors_"):          # SVC
+        params.update({
+            "support_vectors": clf.support_vectors_.astype(np.float32),
+            "dual_coef": clf.dual_coef_.astype(np.float32),
+            "intercept": clf.intercept_.astype(np.float32),
+            "n_support": clf.n_support_.astype(np.int32),
+            "gamma": np.float32(clf._gamma),
+        })
+    else:                                          # KNN - store the training set
+        params.update({
+            "train_X": clf._fit_X.astype(np.float32),
+            "train_y": clf._y.astype(np.int32),
+            "n_neighbors": np.int32(clf.n_neighbors),
+        })
+
+    np.savez_compressed(out_dir / "params.npz", **params)
+    meta = {"class_names": class_names, "feature": feature,
+            "feat_size": FEAT_SIZE, "model": name.split("_")[0]}
+    utils.save_json(meta, out_dir / "meta.json")
+    print(f"[saved] fitted model -> {out_dir}")
 
 
 def main():
